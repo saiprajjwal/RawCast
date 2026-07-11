@@ -508,14 +508,30 @@ function ChannelsTab({ channels, renameChannel }) {
         </div>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 20, display: 'flex', gap: 10 }}>
         <a 
           href={`${API_URL}/auth/youtube`} 
           target="_blank" 
           rel="noreferrer"
-          style={styles.primaryBtn}
+          style={{ ...styles.primaryBtn, background: PLATFORM_META.youtube.color, color: 'white' }}
         >
           Authorize YouTube
+        </a>
+        <a 
+          href={`${API_URL}/auth/tiktok`} 
+          target="_blank" 
+          rel="noreferrer"
+          style={{ ...styles.primaryBtn, background: PLATFORM_META.tiktok.color, color: 'white' }}
+        >
+          Authorize TikTok
+        </a>
+        <a 
+          href={`${API_URL}/auth/facebook`} 
+          target="_blank" 
+          rel="noreferrer"
+          style={{ ...styles.primaryBtn, background: PLATFORM_META.facebook.color, color: 'white' }}
+        >
+          Connect Facebook & IG
         </a>
       </div>
 
