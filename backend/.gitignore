@@ -1,0 +1,7 @@
+node_modules/
+uploads/
+.env
+*.sqlite
+*.sqlite-journal
+
+/generated/prisma

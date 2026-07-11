@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Channel {
+  id           String   @id @default(cuid())
+  platform     String   // 'youtube', 'instagram', 'facebook', 'tiktok'
+  name         String   // Channel name given by user or from API
+  accessToken  String?
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  posts        Post[]
+}
+
+model Post {
+  id              String   @id @default(cuid())
+  title           String
+  caption         String?
+  scheduledDate   String   // 'YYYY-MM-DD'
+  scheduledTime   String   // 'HH:MM'
+  localFilePath   String?  // Path to the file in /uploads
+  thumbnailPath   String?  // Path to the thumbnail in /uploads
+  tags            String?  // Comma-separated tags
+  madeForKids     Boolean  @default(false)
+  categoryId      String   @default("22") // Default to People & Blogs
+  status          String   @default("pending") // 'pending', 'uploaded', 'failed'
+  platformPostId  String?  // ID returned by the platform (e.g. YouTube video ID)
+  channelId       String
+  channel         Channel  @relation(fields: [channelId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
