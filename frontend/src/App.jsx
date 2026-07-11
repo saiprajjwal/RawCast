@@ -1,5 +1,5 @@
 import React from 'react'
-import Dailies from './Dailies'
+import Dailies from './dailies'
 
 function App() {
   return (
