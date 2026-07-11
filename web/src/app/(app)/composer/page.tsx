@@ -237,7 +237,7 @@ function ComposerForm() {
               {PREVIEWABLE.map((p) => {
                 const meta = PLATFORMS[p];
                 const active = selected.includes(p);
-                const available = p === "youtube";
+                const available = p === "youtube" || p === "tiktok";
                 return (
                   <Tooltip key={p}>
                     <TooltipTrigger asChild>
@@ -280,23 +280,29 @@ function ComposerForm() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="channel" className="mb-1.5 block text-[12.5px]">
-                  YouTube channel
+                  {previewPlatform === 'youtube' ? 'YouTube' : 'TikTok'} account
                 </Label>
                 {channelsLoading ? (
                   <Skeleton className="h-9 w-full rounded-lg" />
-                ) : ytChannels.length === 0 ? (
+                ) : previewPlatform === 'youtube' && ytChannels.length === 0 ? (
                   <Button variant="outline" size="sm" className="h-9 w-full justify-start gap-2" asChild>
                     <a href={api.youtubeAuthUrl} target="_blank" rel="noreferrer">
                       <Clapperboard className="size-4 text-brand" /> Connect YouTube…
                     </a>
                   </Button>
+                ) : previewPlatform === 'tiktok' && (channels?.tiktok ?? []).length === 0 ? (
+                  <Button variant="outline" size="sm" className="h-9 w-full justify-start gap-2" asChild>
+                    <a href={api.tiktokAuthUrl} target="_blank" rel="noreferrer">
+                      <PlatformIcon platform="tiktok" className="size-4" /> Connect TikTok…
+                    </a>
+                  </Button>
                 ) : (
                   <Select value={values.channelId} onValueChange={(v) => setValue("channelId", v)}>
                     <SelectTrigger id="channel" className="w-full">
-                      <SelectValue placeholder="Choose channel" />
+                      <SelectValue placeholder="Choose account" />
                     </SelectTrigger>
                     <SelectContent>
-                      {ytChannels.map((c) => (
+                      {(previewPlatform === 'youtube' ? ytChannels : (channels?.tiktok ?? [])).map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
                         </SelectItem>

@@ -101,4 +101,7 @@ export const api = {
 
   /** URL that starts the YouTube OAuth flow (opens in a new tab). */
   youtubeAuthUrl: `${API_URL}/auth/youtube`,
+  
+  /** URL that starts the TikTok OAuth flow (opens in a new tab). */
+  tiktokAuthUrl: `${API_URL}/auth/tiktok`,
 };

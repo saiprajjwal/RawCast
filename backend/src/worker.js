@@ -58,8 +58,34 @@ cron.schedule('* * * * *', async () => {
           console.log('Instagram upload not implemented yet.');
         }
         else if (post.channel.platform === 'tiktok') {
-          // Stub for TikTok
-          console.log('TikTok upload not implemented yet.');
+          const tiktokService = require('./services/tiktok');
+          const result = await tiktokService.uploadVideo(post.channel, post);
+          console.log(`Successfully uploaded to TikTok. Publish ID: ${result.id}`);
+          
+          await prisma.post.update({
+            where: { id: post.id },
+            data: { 
+              status: 'uploaded',
+              platformPostId: result.id
+            }
+          });
+
+          // Delete the local files
+          if (post.localFilePath) {
+            await fs.unlink(post.localFilePath);
+            console.log(`Deleted local file: ${post.localFilePath}`);
+          }
+          if (post.thumbnailPath) {
+            await fs.unlink(post.thumbnailPath);
+            console.log(`Deleted thumbnail file: ${post.thumbnailPath}`);
+          }
+          
+          if (post.localFilePath || post.thumbnailPath) {
+            await prisma.post.update({
+              where: { id: post.id },
+              data: { localFilePath: null, thumbnailPath: null }
+            });
+          }
         }
         else {
           console.log(`Unknown platform: ${post.channel.platform}`);
