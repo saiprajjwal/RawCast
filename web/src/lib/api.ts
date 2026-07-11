@@ -1,7 +1,7 @@
 import type { PlatformId } from "@/lib/platforms";
 
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+  process.env.NEXT_PUBLIC_API_URL || "https://rawcast-production.up.railway.app";
 
 /* ------------------------------------------------------------------ */
 /* Types mirroring the Express backend                                 */
