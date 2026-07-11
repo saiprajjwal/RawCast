@@ -115,14 +115,19 @@ function ComposerForm() {
   const thumbInput = useRef<HTMLInputElement>(null);
 
   const values = watch();
-  const ytChannels = channels?.youtube ?? [];
+  const activeChannels = channels?.[previewPlatform] ?? [];
 
-  // Default the channel once channels load.
+  // Default the channel once channels load or platform changes.
   useEffect(() => {
-    if (!values.channelId && ytChannels.length > 0) {
-      setValue("channelId", ytChannels[0].id);
+    if (activeChannels.length > 0) {
+      // Only set if we haven't selected a valid one for this platform
+      if (!values.channelId || !activeChannels.find(c => c.id === values.channelId)) {
+        setValue("channelId", activeChannels[0].id);
+      }
+    } else {
+      setValue("channelId", "");
     }
-  }, [ytChannels, values.channelId, setValue]);
+  }, [activeChannels, values.channelId, setValue, previewPlatform]);
 
   useEffect(() => {
     if (!video) return setVideoUrl(null);
@@ -150,9 +155,9 @@ function ComposerForm() {
       mediaUrl: videoUrl,
       mediaIsVideo: true,
       thumbUrl,
-      channelName: ytChannels.find((c) => c.id === values.channelId)?.name ?? "RawCast Studio",
+      channelName: activeChannels.find((c) => c.id === values.channelId)?.name ?? "RawCast Studio",
     }),
-    [values.title, values.caption, values.hashtags, videoUrl, thumbUrl, ytChannels, values.channelId],
+    [values.title, values.caption, values.hashtags, videoUrl, thumbUrl, activeChannels, values.channelId],
   );
 
   const runAi = (kind: "write" | "improve" | "hashtags") => {
@@ -237,7 +242,7 @@ function ComposerForm() {
               {PREVIEWABLE.map((p) => {
                 const meta = PLATFORMS[p];
                 const active = selected.includes(p);
-                const available = p === "youtube" || p === "tiktok";
+                const available = ["youtube", "tiktok", "facebook", "instagram"].includes(p);
                 return (
                   <Tooltip key={p}>
                     <TooltipTrigger asChild>
@@ -280,20 +285,14 @@ function ComposerForm() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="channel" className="mb-1.5 block text-[12.5px]">
-                  {previewPlatform === 'youtube' ? 'YouTube' : 'TikTok'} account
+                  {PLATFORMS[previewPlatform]?.name ?? "Platform"} account
                 </Label>
                 {channelsLoading ? (
                   <Skeleton className="h-9 w-full rounded-lg" />
-                ) : previewPlatform === 'youtube' && ytChannels.length === 0 ? (
+                ) : activeChannels.length === 0 ? (
                   <Button variant="outline" size="sm" className="h-9 w-full justify-start gap-2" asChild>
-                    <a href={api.youtubeAuthUrl} target="_blank" rel="noreferrer">
-                      <Clapperboard className="size-4 text-brand" /> Connect YouTube…
-                    </a>
-                  </Button>
-                ) : previewPlatform === 'tiktok' && (channels?.tiktok ?? []).length === 0 ? (
-                  <Button variant="outline" size="sm" className="h-9 w-full justify-start gap-2" asChild>
-                    <a href={api.tiktokAuthUrl} target="_blank" rel="noreferrer">
-                      <PlatformIcon platform="tiktok" className="size-4" /> Connect TikTok…
+                    <a href={previewPlatform === "youtube" ? api.youtubeAuthUrl : previewPlatform === "tiktok" ? api.tiktokAuthUrl : api.facebookAuthUrl} target="_blank" rel="noreferrer">
+                      <PlatformIcon platform={previewPlatform} className="size-4" /> Connect {PLATFORMS[previewPlatform]?.name}…
                     </a>
                   </Button>
                 ) : (
@@ -302,7 +301,7 @@ function ComposerForm() {
                       <SelectValue placeholder="Choose account" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(previewPlatform === 'youtube' ? ytChannels : (channels?.tiktok ?? [])).map((c) => (
+                      {activeChannels.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
                         </SelectItem>

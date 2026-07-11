@@ -104,4 +104,7 @@ export const api = {
   
   /** URL that starts the TikTok OAuth flow (opens in a new tab). */
   tiktokAuthUrl: `${API_URL}/auth/tiktok`,
+  
+  /** URL that starts the Facebook/Instagram OAuth flow (opens in a new tab). */
+  facebookAuthUrl: `${API_URL}/auth/facebook`,
 };

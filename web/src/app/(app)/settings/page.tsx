@@ -126,7 +126,7 @@ function ChannelsTab() {
                   {list.map((c) => (
                     <ChannelRow key={c.id} id={c.id} name={c.name} platform={meta.id} />
                   ))}
-                  {isYouTube && (
+                  {meta.id === "youtube" && (
                     <li className="pt-1.5">
                       <Button variant="outline" size="sm" className="gap-1.5" asChild>
                         <a href={api.youtubeAuthUrl} target="_blank" rel="noreferrer">
@@ -135,18 +135,48 @@ function ChannelsTab() {
                       </Button>
                     </li>
                   )}
+                  {meta.id === "tiktok" && (
+                    <li className="pt-1.5">
+                      <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                        <a href={api.tiktokAuthUrl} target="_blank" rel="noreferrer">
+                          <Plus className="size-3.5" /> Connect another account
+                        </a>
+                      </Button>
+                    </li>
+                  )}
+                  {(meta.id === "facebook" || meta.id === "instagram") && (
+                    <li className="pt-1.5">
+                      <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                        <a href={api.facebookAuthUrl} target="_blank" rel="noreferrer">
+                          <Plus className="size-3.5" /> Connect Meta account
+                        </a>
+                      </Button>
+                    </li>
+                  )}
                 </ul>
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3.5 py-3">
                   <p className="text-[12.5px] text-muted-foreground">
-                    {isYouTube
+                    {["youtube", "tiktok", "facebook", "instagram"].includes(meta.id)
                       ? "No channels connected yet."
                       : `${meta.name} publishing is on the roadmap — previews already work in the Composer.`}
                   </p>
-                  {isYouTube ? (
+                  {meta.id === "youtube" ? (
                     <Button size="sm" className="gap-1.5" asChild>
                       <a href={api.youtubeAuthUrl} target="_blank" rel="noreferrer">
                         <Link2 className="size-3.5" /> Connect with Google
+                      </a>
+                    </Button>
+                  ) : meta.id === "tiktok" ? (
+                    <Button size="sm" className="gap-1.5" asChild>
+                      <a href={api.tiktokAuthUrl} target="_blank" rel="noreferrer">
+                        <Link2 className="size-3.5" /> Connect TikTok
+                      </a>
+                    </Button>
+                  ) : meta.id === "facebook" || meta.id === "instagram" ? (
+                    <Button size="sm" className="gap-1.5" asChild>
+                      <a href={api.facebookAuthUrl} target="_blank" rel="noreferrer">
+                        <Link2 className="size-3.5" /> Connect Meta Account
                       </a>
                     </Button>
                   ) : (
