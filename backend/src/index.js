@@ -16,6 +16,10 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.get('/', (req, res) => {
+  res.send('RawCast Backend API is running!');
+});
+
 app.use('/auth', authRoutes);
 app.use('/posts', postsRoutes);
 app.use('/channels', channelsRoutes);
