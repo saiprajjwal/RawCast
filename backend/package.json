@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "mkdir -p uploads && prisma db push && node src/index.js",
-    "build": "prisma generate",
+    "start": "mkdir -p uploads && node src/index.js",
+    "build": "prisma generate && prisma db push",
     "postinstall": "prisma generate"
   },
   "keywords": [],
