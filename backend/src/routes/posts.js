@@ -77,7 +77,7 @@ router.post('/', upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbna
     res.status(201).json(post);
   } catch (err) {
     console.error('Error creating post:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
 
