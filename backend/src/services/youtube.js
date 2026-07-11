@@ -107,8 +107,24 @@ async function uploadVideo(channel, post) {
   return res.data;
 }
 
+async function getChannelName(tokens) {
+  try {
+    const oauth2Client = getOAuth2Client();
+    oauth2Client.setCredentials(tokens);
+    const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+    const res = await youtube.channels.list({ part: 'snippet', mine: true });
+    if (res.data.items && res.data.items.length > 0) {
+      return res.data.items[0].snippet.title;
+    }
+  } catch (err) {
+    console.error('Error fetching channel name:', err);
+  }
+  return null;
+}
+
 module.exports = {
   getAuthUrl,
   getTokens,
-  uploadVideo
+  uploadVideo,
+  getChannelName
 };

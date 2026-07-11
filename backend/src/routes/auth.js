@@ -18,13 +18,7 @@ router.get('/youtube/callback', async (req, res) => {
 
   try {
     const tokens = await youtubeService.getTokens(code);
-    
-    // For simplicity, we just create a generic YouTube channel entry, 
-    // or update the existing one if we want to tie it to a specific user.
-    // In a real app, you would fetch the channel name from the YouTube API here.
-    
-    // Just find any existing youtube channel or create one
-    // Let's create a new one for demonstration or update existing
+    const actualName = await youtubeService.getChannelName(tokens);
     
     const count = await prisma.channel.count({
       where: { platform: 'youtube' }
@@ -33,7 +27,7 @@ router.get('/youtube/callback', async (req, res) => {
     await prisma.channel.create({
       data: {
         platform: 'youtube',
-        name: `YouTube Channel ${count + 1}`,
+        name: actualName || `YouTube Channel ${count + 1}`,
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
       }
