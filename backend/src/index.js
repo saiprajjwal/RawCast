@@ -17,7 +17,7 @@ app.use(express.json());
 
 // Routes
 const path = require('path');
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/', (req, res) => {
   res.send('RawCast Backend API is running!');

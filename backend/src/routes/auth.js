@@ -177,7 +177,7 @@ router.get('/facebook/callback', async (req, res) => {
       // Check for connected Instagram account
       const igAccountId = await metaService.getInstagramAccountId(page.id, page.access_token);
       if (igAccountId) {
-        const igName = \`IG: \${page.name}\`; // We use the page name as we don't fetch the IG username directly to save API calls
+        const igName = `IG: ${page.name}`; // We use the page name as we don't fetch the IG username directly to save API calls
         const igExisting = await prisma.channel.findFirst({
           where: { platform: 'instagram', name: igName }
         });
