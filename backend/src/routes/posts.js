@@ -81,6 +81,34 @@ router.post('/', upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbna
   }
 });
 
+// Update a post's schedule or copy (only while still pending)
+router.patch('/:id', async (req, res) => {
+  try {
+    const existing = await prisma.post.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    if (existing.status !== 'pending') {
+      return res.status(409).json({ error: 'Only pending posts can be rescheduled' });
+    }
+
+    const { date, time, title, caption } = req.body;
+    const post = await prisma.post.update({
+      where: { id: req.params.id },
+      data: {
+        ...(date ? { scheduledDate: date } : {}),
+        ...(time ? { scheduledTime: time } : {}),
+        ...(title ? { title } : {}),
+        ...(caption !== undefined ? { caption } : {})
+      }
+    });
+    res.json(post);
+  } catch (err) {
+    console.error('Error updating post:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Delete a post
 router.delete('/:id', async (req, res) => {
   try {
