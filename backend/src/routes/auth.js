@@ -24,14 +24,30 @@ router.get('/youtube/callback', async (req, res) => {
       where: { platform: 'youtube' }
     });
     
-    await prisma.channel.create({
-      data: {
-        platform: 'youtube',
-        name: actualName || `YouTube Channel ${count + 1}`,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-      }
+    const channelName = actualName || `YouTube Channel ${count + 1}`;
+    
+    const existing = await prisma.channel.findFirst({
+      where: { platform: 'youtube', name: channelName }
     });
+    
+    if (existing) {
+      await prisma.channel.update({
+        where: { id: existing.id },
+        data: {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token || existing.refreshToken
+        }
+      });
+    } else {
+      await prisma.channel.create({
+        data: {
+          platform: 'youtube',
+          name: channelName,
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+        }
+      });
+    }
 
     res.send(`
       <html>

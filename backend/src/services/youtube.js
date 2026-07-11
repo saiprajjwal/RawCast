@@ -114,7 +114,10 @@ async function getChannelName(tokens) {
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
     const res = await youtube.channels.list({ part: 'snippet', mine: true });
     if (res.data.items && res.data.items.length > 0) {
-      return res.data.items[0].snippet.title;
+      const channel = res.data.items[0];
+      const title = channel.snippet.title;
+      const handle = channel.snippet.customUrl || channel.id.substring(0, 8) + '...';
+      return `${title} (${handle})`;
     }
   } catch (err) {
     console.error('Error fetching channel name:', err);
