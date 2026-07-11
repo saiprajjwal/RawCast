@@ -25,7 +25,7 @@ app.use('/posts', postsRoutes);
 app.use('/channels', channelsRoutes);
 
 // TikTok Domain Verification
-app.get('/*.txt', (req, res) => {
+app.get('/tiktokj4z27LwUGe92MguLiGbzmEniKbDr7xZJ.txt', (req, res) => {
   res.send('tiktok-developers-site-verification=j4z27LwUGe92MguLiGbzmEniKbDr7xZJ');
 });
 
