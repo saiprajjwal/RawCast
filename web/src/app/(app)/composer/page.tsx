@@ -260,10 +260,10 @@ function ComposerForm() {
                         }}
                         aria-pressed={active}
                         className={cn(
-                          "flex h-9 items-center gap-2 rounded-lg border px-3 text-[13px] font-medium transition-all",
+                          "flex h-9 items-center gap-2 rounded-lg border px-3 text-[13px] font-medium transition-all duration-200",
                           active
-                            ? "border-transparent bg-primary text-primary-foreground elevation-1"
-                            : "border-border/80 bg-card text-foreground/75 hover:border-border hover:bg-accent",
+                            ? "border-brand bg-brand/15 text-foreground elevation-1 ring-1 ring-brand/50 shadow-sm shadow-brand/20"
+                            : "border-border/60 bg-card text-muted-foreground hover:border-border hover:bg-accent hover:text-foreground",
                           !available && !active && "opacity-55",
                         )}
                       >
@@ -281,7 +281,7 @@ function ComposerForm() {
           </section>
 
           {/* Channel + title */}
-          <div className="grid gap-4 rounded-xl border border-border/80 bg-card p-4 elevation-1">
+          <div className="grid gap-4 rounded-xl border border-border/60 bg-card glass-card p-4 elevation-1 transition-all duration-300 hover:elevation-2">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="channel" className="mb-1.5 block text-[12.5px]">
@@ -413,7 +413,7 @@ function ComposerForm() {
           </div>
 
           {/* Media */}
-          <div className="rounded-xl border border-border/80 bg-card p-4 elevation-1">
+          <div className="rounded-xl border border-border/60 bg-card glass-card p-4 elevation-1 transition-all duration-300 hover:elevation-2">
             <Label className="mb-2.5 block text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
               Media
             </Label>
@@ -500,7 +500,7 @@ function ComposerForm() {
           </div>
 
           {/* Schedule */}
-          <div className="rounded-xl border border-border/80 bg-card p-4 elevation-1">
+          <div className="rounded-xl border border-border/60 bg-card glass-card p-4 elevation-1 transition-all duration-300 hover:elevation-2">
             <Label className="mb-2.5 block text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
               Schedule
             </Label>
@@ -527,7 +527,7 @@ function ComposerForm() {
 
         {/* ------------------------------------------------ Right: preview */}
         <aside className="lg:sticky lg:top-6 lg:self-start" aria-label="Live preview">
-          <div className="mb-3 flex flex-wrap gap-1 rounded-lg border border-border/80 bg-card p-1">
+          <div className="mb-3 flex flex-wrap gap-1 rounded-lg border border-border/60 bg-card glass-card p-1 elevation-1">
             {PREVIEWABLE.map((p) => (
               <button
                 key={p}

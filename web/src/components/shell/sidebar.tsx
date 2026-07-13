@@ -31,7 +31,7 @@ function NavLink({
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium text-sidebar-foreground/85 transition-colors duration-150",
+        "group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium text-sidebar-foreground/85 transition-all duration-200 hover:translate-x-1",
         "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         "focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
         active && "bg-sidebar-accent text-sidebar-accent-foreground",
@@ -80,7 +80,7 @@ export function Sidebar({
       animate={{ width: collapsed ? 64 : 232 }}
       initial={false}
       transition={{ type: "spring", stiffness: 400, damping: 38 }}
-      className="relative z-30 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex"
+      className="relative z-30 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar/80 glass md:flex"
     >
       {/* Workspace switcher */}
       <div className={cn("flex items-center gap-2 p-3", collapsed && "justify-center px-2")}>
@@ -93,7 +93,7 @@ export function Sidebar({
               )}
               aria-label="Switch workspace"
             >
-              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-brand text-brand-foreground elevation-1">
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-brand text-brand-foreground shadow-sm shadow-brand/30 elevation-1 transition-all duration-300 group-hover:shadow-md group-hover:shadow-brand/40 group-hover:scale-105">
                 <Clapperboard className="size-4" strokeWidth={2} />
               </span>
               {!collapsed && (

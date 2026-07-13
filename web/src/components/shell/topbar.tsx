@@ -44,7 +44,7 @@ export function Topbar({
   const title = TITLES[section] ?? "RawCast";
 
   return (
-    <header className="glass sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 px-4 md:px-6">
+    <header className="glass sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 px-4 shadow-sm shadow-black/5 transition-all duration-300 md:px-6">
       <Button
         variant="ghost"
         size="icon-sm"
