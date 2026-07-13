@@ -213,10 +213,11 @@ function PlatformsCard() {
               const connectedCount = channels?.[s.platform]?.length ?? 0;
               const connected = connectedCount > 0;
               
-              const authUrl = 
-                isYt ? api.youtubeAuthUrl : 
-                isTt ? api.tiktokAuthUrl : 
-                (isFb || isIg) ? api.facebookAuthUrl : "#";
+              const authUrl =
+                isYt ? api.youtubeAuthUrl :
+                isTt ? api.tiktokAuthUrl :
+                isIg ? api.instagramAuthUrl :
+                isFb ? api.facebookAuthUrl : "#";
 
               return (
                 <div key={s.platform} className="flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-accent">

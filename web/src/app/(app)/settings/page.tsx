@@ -146,10 +146,11 @@ function ChannelsTab() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {PLATFORM_LIST.filter((p) => p.id !== "pinterest").map((meta) => {
             const available = ["youtube", "tiktok", "facebook", "instagram"].includes(meta.id);
-            const authUrl = 
-              meta.id === "youtube" ? api.youtubeAuthUrl : 
-              meta.id === "tiktok" ? api.tiktokAuthUrl : 
-              meta.id === "facebook" || meta.id === "instagram" ? api.facebookAuthUrl : null;
+            const authUrl =
+              meta.id === "youtube" ? api.youtubeAuthUrl :
+              meta.id === "tiktok" ? api.tiktokAuthUrl :
+              meta.id === "instagram" ? api.instagramAuthUrl :
+              meta.id === "facebook" ? api.facebookAuthUrl : null;
             
             return (
               <Card key={meta.id} className={cn("glass-card elevation-1 flex flex-col p-4 transition-all duration-300 border-border/60", available ? "hover:elevation-2 hover:border-border/80" : "opacity-60 grayscale-[0.3]")}>

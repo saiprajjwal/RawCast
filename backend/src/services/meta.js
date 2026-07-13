@@ -129,12 +129,12 @@ async function uploadInstagramVideo(igAccountId, pageAccessToken, videoUrl, capt
       
       const statusResponse = await axios.get(`${GRAPH_BASE_URL}/${creationId}`, {
         params: {
-          fields: 'status_statusCode',
+          fields: 'status_code',
           access_token: pageAccessToken
         }
       });
-      
-      const status = statusResponse.data.status_statusCode;
+
+      const status = statusResponse.data.status_code;
       console.log(`IG Container status [${attempts}]: ${status}`);
       
       if (status === 'FINISHED') {

@@ -83,17 +83,30 @@ cron.schedule('* * * * *', async () => {
           });
         }
         else if (post.channel.platform === 'instagram') {
-          const metaService = require('./services/meta');
           const path = require('path');
           const filename = path.basename(post.localFilePath);
           const videoUrl = 'https://rawcast-production.up.railway.app/uploads/' + filename;
-          
-          const result = await metaService.uploadInstagramVideo(
-            post.channel.accountId, // igAccountId
-            post.channel.accessToken, // page access token
-            videoUrl,
-            post.caption || ''
-          );
+
+          let result;
+          if (post.channel.authKind === 'instagram_login') {
+            // Connected directly with Instagram business login
+            const instagramService = require('./services/instagram');
+            result = await instagramService.uploadVideo(
+              post.channel.accountId,
+              post.channel.accessToken,
+              videoUrl,
+              post.caption || ''
+            );
+          } else {
+            // Legacy: IG account linked to a Facebook Page
+            const metaService = require('./services/meta');
+            result = await metaService.uploadInstagramVideo(
+              post.channel.accountId, // igAccountId
+              post.channel.accessToken, // page access token
+              videoUrl,
+              post.caption || ''
+            );
+          }
           
           console.log(`Successfully uploaded to Instagram. Publish ID: ${result.id}`);
           
@@ -157,6 +170,30 @@ cron.schedule('* * * * *', async () => {
     }
   } catch (error) {
     console.error('Worker error:', error);
+  }
+});
+
+// Instagram-login tokens expire after ~60 days; refresh them weekly (Mon 3 AM)
+cron.schedule('0 3 * * 1', async () => {
+  try {
+    const igChannels = await prisma.channel.findMany({
+      where: { platform: 'instagram', authKind: 'instagram_login' }
+    });
+    const instagramService = require('./services/instagram');
+    for (const channel of igChannels) {
+      try {
+        const newToken = await instagramService.refreshToken(channel.accessToken);
+        await prisma.channel.update({
+          where: { id: channel.id },
+          data: { accessToken: newToken }
+        });
+        console.log(`Refreshed Instagram token for ${channel.name}`);
+      } catch (err) {
+        console.error(`Failed to refresh Instagram token for ${channel.name}:`, err.response?.data || err.message);
+      }
+    }
+  } catch (error) {
+    console.error('Instagram token refresh job error:', error);
   }
 });
 

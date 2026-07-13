@@ -291,7 +291,7 @@ function ComposerForm() {
                   <Skeleton className="h-9 w-full rounded-lg" />
                 ) : activeChannels.length === 0 ? (
                   <Button variant="outline" size="sm" className="h-9 w-full justify-start gap-2" asChild>
-                    <a href={previewPlatform === "youtube" ? api.youtubeAuthUrl : previewPlatform === "tiktok" ? api.tiktokAuthUrl : api.facebookAuthUrl} target="_blank" rel="noreferrer">
+                    <a href={previewPlatform === "youtube" ? api.youtubeAuthUrl : previewPlatform === "tiktok" ? api.tiktokAuthUrl : previewPlatform === "instagram" ? api.instagramAuthUrl : api.facebookAuthUrl} target="_blank" rel="noreferrer">
                       <PlatformIcon platform={previewPlatform} className="size-4" /> Connect {PLATFORMS[previewPlatform]?.name}…
                     </a>
                   </Button>

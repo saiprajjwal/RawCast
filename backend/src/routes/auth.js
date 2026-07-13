@@ -217,4 +217,68 @@ router.get('/facebook/callback', async (req, res) => {
   }
 });
 
+const instagramService = require('../services/instagram');
+
+// Instagram business login — connects an IG professional account directly,
+// no Facebook Page required.
+router.get('/instagram', (req, res) => {
+  const url = instagramService.getAuthUrl();
+  res.redirect(url);
+});
+
+router.get('/instagram/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) {
+    return res.status(400).send('No code provided');
+  }
+
+  try {
+    const tokens = await instagramService.getTokens(code);
+    const profile = await instagramService.getProfile(tokens.access_token);
+
+    const accountId = String(profile.user_id || tokens.user_id);
+    const name = profile.username ? `@${profile.username}` : `Instagram ${accountId}`;
+
+    const existing = await prisma.channel.findFirst({
+      where: { platform: 'instagram', accountId: accountId }
+    });
+
+    if (existing) {
+      await prisma.channel.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          accessToken: tokens.access_token,
+          authKind: 'instagram_login'
+        }
+      });
+    } else {
+      await prisma.channel.create({
+        data: {
+          platform: 'instagram',
+          name,
+          accessToken: tokens.access_token,
+          accountId: accountId,
+          authKind: 'instagram_login'
+        }
+      });
+    }
+
+    res.send(`
+      <html>
+        <body>
+          <h2>Instagram Authorized Successfully!</h2>
+          <p>Connected ${name}. You can close this window and go back to RawCast.</p>
+          <script>
+            setTimeout(() => window.close(), 2000);
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Instagram OAuth Callback Error:', error.response?.data || error);
+    res.status(500).send('Authentication failed');
+  }
+});
+
 module.exports = router;
