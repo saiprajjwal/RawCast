@@ -53,9 +53,9 @@ export const platformStats: {
 }[] = [
   { platform: "youtube", followers: 12840, reach: 96400, engagementRate: 6.4, delta: 12.6 },
   { platform: "instagram", followers: 8210, reach: 41200, engagementRate: 4.1, delta: 3.2 },
-  { platform: "x", followers: 3480, reach: 18800, engagementRate: 2.2, delta: -1.4 },
-  { platform: "linkedin", followers: 1960, reach: 9400, engagementRate: 5.6, delta: 7.8 },
+  { platform: "facebook", followers: 6450, reach: 24500, engagementRate: 3.5, delta: 5.1 },
   { platform: "tiktok", followers: 15220, reach: 188000, engagementRate: 9.8, delta: 22.4 },
+  { platform: "x", followers: 3480, reach: 18800, engagementRate: 2.2, delta: -1.4 },
 ];
 
 export const topPosts = [

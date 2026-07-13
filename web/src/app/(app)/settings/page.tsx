@@ -105,91 +105,83 @@ function ChannelRow({
 function ChannelsTab() {
   const { data: channels, isLoading } = useChannels();
 
+  // Flatten all connected channels into one array
+  const allConnected = Object.entries(channels ?? {}).flatMap(([platformId, list]) => 
+    list.map(c => ({ ...c, platformId: platformId as PlatformId }))
+  );
+
   return (
-    <div className="space-y-4">
-      {PLATFORM_LIST.filter((p) => p.id !== "pinterest").map((meta) => {
-        const list = channels?.[meta.id] ?? [];
-        const isYouTube = meta.id === "youtube";
-        return (
-          <Card key={meta.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-[14px]">
-                <PlatformIcon platform={meta.id} colored className="size-4" />
-                {meta.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-10 w-full rounded-lg" />
-              ) : list.length > 0 ? (
-                <ul className="space-y-0.5">
-                  {list.map((c) => (
-                    <ChannelRow key={c.id} id={c.id} name={c.name} platform={meta.id} />
-                  ))}
-                  {meta.id === "youtube" && (
-                    <li className="pt-1.5">
-                      <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                        <a href={api.youtubeAuthUrl} target="_blank" rel="noreferrer">
-                          <Plus className="size-3.5" /> Connect another channel
-                        </a>
-                      </Button>
-                    </li>
-                  )}
-                  {meta.id === "tiktok" && (
-                    <li className="pt-1.5">
-                      <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                        <a href={api.tiktokAuthUrl} target="_blank" rel="noreferrer">
-                          <Plus className="size-3.5" /> Connect another account
-                        </a>
-                      </Button>
-                    </li>
-                  )}
-                  {(meta.id === "facebook" || meta.id === "instagram") && (
-                    <li className="pt-1.5">
-                      <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                        <a href={api.facebookAuthUrl} target="_blank" rel="noreferrer">
-                          <Plus className="size-3.5" /> Connect Meta account
-                        </a>
-                      </Button>
-                    </li>
-                  )}
-                </ul>
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border px-3.5 py-3">
-                  <p className="text-[12.5px] text-muted-foreground">
-                    {["youtube", "tiktok", "facebook", "instagram"].includes(meta.id)
-                      ? "No channels connected yet."
-                      : `${meta.name} publishing is on the roadmap — previews already work in the Composer.`}
-                  </p>
-                  {meta.id === "youtube" ? (
-                    <Button size="sm" className="gap-1.5" asChild>
-                      <a href={api.youtubeAuthUrl} target="_blank" rel="noreferrer">
-                        <Link2 className="size-3.5" /> Connect with Google
-                      </a>
-                    </Button>
-                  ) : meta.id === "tiktok" ? (
-                    <Button size="sm" className="gap-1.5" asChild>
-                      <a href={api.tiktokAuthUrl} target="_blank" rel="noreferrer">
-                        <Link2 className="size-3.5" /> Connect TikTok
-                      </a>
-                    </Button>
-                  ) : meta.id === "facebook" || meta.id === "instagram" ? (
-                    <Button size="sm" className="gap-1.5" asChild>
-                      <a href={api.facebookAuthUrl} target="_blank" rel="noreferrer">
-                        <Link2 className="size-3.5" /> Connect Meta Account
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      {/* Connected Accounts Section */}
+      <section>
+        <h3 className="mb-3 text-[14px] font-semibold tracking-tight">Connected Accounts</h3>
+        <Card className="glass-card elevation-1 overflow-hidden border-border/60">
+          {isLoading ? (
+            <div className="p-4 space-y-2">
+              <Skeleton className="h-10 w-full rounded-lg" />
+              <Skeleton className="h-10 w-full rounded-lg" />
+            </div>
+          ) : allConnected.length > 0 ? (
+            <ul className="divide-y divide-border/40">
+              {allConnected.map(c => (
+                <ChannelRow key={c.id} id={c.id} name={c.name} platform={c.platformId} />
+              ))}
+            </ul>
+          ) : (
+            <div className="p-8 text-center flex flex-col items-center justify-center gap-2">
+              <div className="grid size-12 place-items-center rounded-full bg-muted/50 border border-border/50">
+                <Link2 className="size-5 text-muted-foreground" />
+              </div>
+              <p className="text-[13px] text-muted-foreground">
+                You haven't connected any accounts yet.
+              </p>
+            </div>
+          )}
+        </Card>
+      </section>
+
+      {/* Available Platforms Section */}
+      <section>
+        <h3 className="mb-3 text-[14px] font-semibold tracking-tight">Available Platforms</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {PLATFORM_LIST.filter((p) => p.id !== "pinterest").map((meta) => {
+            const available = ["youtube", "tiktok", "facebook", "instagram"].includes(meta.id);
+            const authUrl = 
+              meta.id === "youtube" ? api.youtubeAuthUrl : 
+              meta.id === "tiktok" ? api.tiktokAuthUrl : 
+              meta.id === "facebook" || meta.id === "instagram" ? api.facebookAuthUrl : null;
+            
+            return (
+              <Card key={meta.id} className={cn("glass-card elevation-1 flex flex-col p-4 transition-all duration-300 border-border/60", available ? "hover:elevation-2 hover:border-border/80" : "opacity-60 grayscale-[0.3]")}>
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-foreground shadow-sm shadow-black/5">
+                    <PlatformIcon platform={meta.id} colored={available} className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[14px] font-semibold truncate">{meta.name}</h4>
+                    <p className="text-[12px] text-muted-foreground truncate">
+                      {available ? "Publish & Schedule" : "Coming soon"}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-auto">
+                  {available && authUrl ? (
+                    <Button variant="outline" size="sm" className="w-full gap-1.5 transition-all duration-200 hover:bg-brand/10 hover:text-brand hover:border-brand/40" asChild>
+                      <a href={authUrl} target="_blank" rel="noreferrer">
+                        <Plus className="size-3.5" /> Connect
                       </a>
                     </Button>
                   ) : (
-                    <Button size="sm" variant="outline" disabled>
-                      Coming soon
+                    <Button variant="outline" size="sm" className="w-full" disabled>
+                      In development
                     </Button>
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+              </Card>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }

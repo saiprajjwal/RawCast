@@ -77,7 +77,7 @@ function TodayCard() {
           <EmptyState
             icon={CalendarDays}
             title="Couldn't reach the backend"
-            description="Make sure the RawCast server is running on port 3000, then retry."
+            description="Make sure the RawCast backend is running and reachable, then retry."
             action={
               <Button size="sm" variant="outline" onClick={() => location.reload()}>
                 Retry
@@ -207,19 +207,29 @@ function PlatformsCard() {
           <>
             {platformStats.slice(0, 4).map((s) => {
               const isYt = s.platform === "youtube";
-              const connected = isYt ? connectedYt > 0 : false;
+              const isFb = s.platform === "facebook";
+              const isIg = s.platform === "instagram";
+              const isTt = s.platform === "tiktok";
+              const connectedCount = channels?.[s.platform]?.length ?? 0;
+              const connected = connectedCount > 0;
+              
+              const authUrl = 
+                isYt ? api.youtubeAuthUrl : 
+                isTt ? api.tiktokAuthUrl : 
+                (isFb || isIg) ? api.facebookAuthUrl : "#";
+
               return (
                 <div key={s.platform} className="flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-accent">
                   <PlatformIcon platform={s.platform} colored className="size-4" />
                   <span className="flex-1 text-[13px] font-medium">{PLATFORMS[s.platform].name}</span>
                   {connected ? (
                     <span className="text-[12px] text-muted-foreground tnum">
-                      {connectedYt} channel{connectedYt === 1 ? "" : "s"}
+                      {connectedCount} connected
                     </span>
                   ) : (
                     <a
-                      href={isYt ? api.youtubeAuthUrl : "#"}
-                      target={isYt ? "_blank" : undefined}
+                      href={authUrl}
+                      target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-[12px] font-medium text-brand hover:underline"
                     >
