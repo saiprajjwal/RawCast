@@ -189,11 +189,112 @@ async function uploadFacebookVideo(pageId, pageAccessToken, videoUrl, descriptio
   }
 }
 
+/** Wait until a container is ready to publish (page-token variant). */
+async function waitForIgContainer(creationId, pageAccessToken) {
+  for (let attempt = 1; attempt <= 20; attempt++) {
+    const statusRes = await axios.get(`${GRAPH_BASE_URL}/${creationId}`, {
+      params: { fields: 'status_code', access_token: pageAccessToken }
+    });
+    const status = statusRes.data.status_code;
+    if (status === 'FINISHED') return;
+    if (status === 'ERROR') throw new Error('IG Container failed to process the media');
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  throw new Error('IG Container processing timed out');
+}
+
+/**
+ * Publish one photo, or 2-10 as a carousel, to a page-linked IG account.
+ */
+async function uploadInstagramPhotos(igAccountId, pageAccessToken, photoUrls, caption) {
+  try {
+    console.log(`Publishing ${photoUrls.length} IG photo(s) for account ${igAccountId}`);
+
+    if (photoUrls.length === 1) {
+      const containerRes = await axios.post(`${GRAPH_BASE_URL}/${igAccountId}/media`, null, {
+        params: { image_url: photoUrls[0], caption, access_token: pageAccessToken }
+      });
+      await waitForIgContainer(containerRes.data.id, pageAccessToken);
+      const publishRes = await axios.post(`${GRAPH_BASE_URL}/${igAccountId}/media_publish`, null, {
+        params: { creation_id: containerRes.data.id, access_token: pageAccessToken }
+      });
+      return publishRes.data;
+    }
+
+    const children = [];
+    for (const url of photoUrls) {
+      const childRes = await axios.post(`${GRAPH_BASE_URL}/${igAccountId}/media`, null, {
+        params: { image_url: url, is_carousel_item: true, access_token: pageAccessToken }
+      });
+      await waitForIgContainer(childRes.data.id, pageAccessToken);
+      children.push(childRes.data.id);
+    }
+
+    const carouselRes = await axios.post(`${GRAPH_BASE_URL}/${igAccountId}/media`, null, {
+      params: {
+        media_type: 'CAROUSEL',
+        children: children.join(','),
+        caption,
+        access_token: pageAccessToken
+      }
+    });
+    await waitForIgContainer(carouselRes.data.id, pageAccessToken);
+
+    const publishRes = await axios.post(`${GRAPH_BASE_URL}/${igAccountId}/media_publish`, null, {
+      params: { creation_id: carouselRes.data.id, access_token: pageAccessToken }
+    });
+    return publishRes.data;
+  } catch (error) {
+    console.error('Error publishing IG photos:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Publish one or more photos to a Facebook Page. Multi-photo posts upload
+ * each photo unpublished, then attach them to a single feed post.
+ */
+async function uploadFacebookPhotos(pageId, pageAccessToken, photoUrls, message) {
+  try {
+    console.log(`Publishing ${photoUrls.length} FB photo(s) for page ${pageId}`);
+
+    if (photoUrls.length === 1) {
+      const res = await axios.post(`${GRAPH_BASE_URL}/${pageId}/photos`, null, {
+        params: { url: photoUrls[0], message, access_token: pageAccessToken }
+      });
+      return { id: res.data.post_id || res.data.id };
+    }
+
+    const mediaIds = [];
+    for (const url of photoUrls) {
+      const res = await axios.post(`${GRAPH_BASE_URL}/${pageId}/photos`, null, {
+        params: { url, published: false, access_token: pageAccessToken }
+      });
+      mediaIds.push(res.data.id);
+    }
+
+    const params = new URLSearchParams({ message, access_token: pageAccessToken });
+    mediaIds.forEach((id, i) => {
+      params.append(`attached_media[${i}]`, JSON.stringify({ media_fbid: id }));
+    });
+
+    const feedRes = await axios.post(`${GRAPH_BASE_URL}/${pageId}/feed`, params.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+    return { id: feedRes.data.id };
+  } catch (error) {
+    console.error('Error publishing FB photos:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   getAuthUrl,
   getTokens,
   getPages,
   getInstagramAccountId,
   uploadInstagramVideo,
-  uploadFacebookVideo
+  uploadInstagramPhotos,
+  uploadFacebookVideo,
+  uploadFacebookPhotos
 };

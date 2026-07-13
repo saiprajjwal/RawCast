@@ -149,10 +149,76 @@ async function uploadVideo(igUserId, accessToken, videoUrl, caption) {
   }
 }
 
+/** Wait until a container is ready to publish. */
+async function waitForContainer(creationId, accessToken) {
+  for (let attempt = 1; attempt <= 20; attempt++) {
+    const statusRes = await axios.get(`${IG_GRAPH}/${GRAPH_VERSION}/${creationId}`, {
+      params: { fields: 'status_code', access_token: accessToken }
+    });
+    const status = statusRes.data.status_code;
+    if (status === 'FINISHED') return;
+    if (status === 'ERROR') throw new Error('Instagram could not process the media');
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  throw new Error('Instagram container processing timed out');
+}
+
+/**
+ * Publish one photo, or 2-10 photos as a carousel. photoUrls must be
+ * publicly reachable JPEGs/PNGs.
+ */
+async function uploadPhotos(igUserId, accessToken, photoUrls, caption) {
+  try {
+    console.log(`[IG Login] Publishing ${photoUrls.length} photo(s) for account ${igUserId}`);
+
+    if (photoUrls.length === 1) {
+      const containerRes = await axios.post(`${IG_GRAPH}/${GRAPH_VERSION}/${igUserId}/media`, null, {
+        params: { image_url: photoUrls[0], caption, access_token: accessToken }
+      });
+      await waitForContainer(containerRes.data.id, accessToken);
+      const publishRes = await axios.post(`${IG_GRAPH}/${GRAPH_VERSION}/${igUserId}/media_publish`, null, {
+        params: { creation_id: containerRes.data.id, access_token: accessToken }
+      });
+      console.log('[IG Login] Photo publish success:', publishRes.data);
+      return publishRes.data;
+    }
+
+    // Carousel: one child container per photo, then a parent container
+    const children = [];
+    for (const url of photoUrls) {
+      const childRes = await axios.post(`${IG_GRAPH}/${GRAPH_VERSION}/${igUserId}/media`, null, {
+        params: { image_url: url, is_carousel_item: true, access_token: accessToken }
+      });
+      await waitForContainer(childRes.data.id, accessToken);
+      children.push(childRes.data.id);
+    }
+
+    const carouselRes = await axios.post(`${IG_GRAPH}/${GRAPH_VERSION}/${igUserId}/media`, null, {
+      params: {
+        media_type: 'CAROUSEL',
+        children: children.join(','),
+        caption,
+        access_token: accessToken
+      }
+    });
+    await waitForContainer(carouselRes.data.id, accessToken);
+
+    const publishRes = await axios.post(`${IG_GRAPH}/${GRAPH_VERSION}/${igUserId}/media_publish`, null, {
+      params: { creation_id: carouselRes.data.id, access_token: accessToken }
+    });
+    console.log('[IG Login] Carousel publish success:', publishRes.data);
+    return publishRes.data;
+  } catch (error) {
+    console.error('[IG Login] Error publishing photos:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   getAuthUrl,
   getTokens,
   refreshToken,
   getProfile,
-  uploadVideo
+  uploadVideo,
+  uploadPhotos
 };

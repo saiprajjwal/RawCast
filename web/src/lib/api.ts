@@ -23,6 +23,8 @@ export interface ApiPost {
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
   status: PostStatus;
+  mediaType?: "video" | "photos";
+  photoCount?: number;
   selections: string[]; // ["youtube:<channelId>"]
 }
 
@@ -35,8 +37,9 @@ export interface CreatePostInput {
   tags: string;
   madeForKids: boolean;
   categoryId: string;
-  video: File;
+  video?: File | null;
   thumbnail?: File | null;
+  photos?: File[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -81,8 +84,9 @@ export const api = {
     form.set("tags", input.tags);
     form.set("madeForKids", String(input.madeForKids));
     form.set("categoryId", input.categoryId);
-    form.set("video", input.video);
+    if (input.video) form.set("video", input.video);
     if (input.thumbnail) form.set("thumbnail", input.thumbnail);
+    for (const photo of input.photos ?? []) form.append("photos", photo);
     return request<ApiPost>("/posts", { method: "POST", body: form });
   },
 

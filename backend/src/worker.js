@@ -1,7 +1,41 @@
 const cron = require('node-cron');
 const fs = require('fs/promises');
+const path = require('path');
 const prisma = require('./prisma');
 const youtubeService = require('./services/youtube');
+
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://rawcast-production.up.railway.app';
+
+function publicUploadUrl(localPath) {
+  return `${PUBLIC_BASE_URL}/uploads/${path.basename(localPath)}`;
+}
+
+function photoPathsOf(post) {
+  try {
+    return post.photoPaths ? JSON.parse(post.photoPaths) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Delete all local media for a post and clear the DB pointers
+async function cleanupPostFiles(post) {
+  const files = [post.localFilePath, post.thumbnailPath, ...photoPathsOf(post)].filter(Boolean);
+  for (const file of files) {
+    try {
+      await fs.unlink(file);
+      console.log(`Deleted local file: ${file}`);
+    } catch (err) {
+      console.error(`Could not delete ${file}:`, err.message);
+    }
+  }
+  if (files.length > 0) {
+    await prisma.post.update({
+      where: { id: post.id },
+      data: { localFilePath: null, thumbnailPath: null, photoPaths: null }
+    });
+  }
+}
 
 // Run every minute
 cron.schedule('* * * * *', async () => {
@@ -51,80 +85,88 @@ cron.schedule('* * * * *', async () => {
         } 
         else if (post.channel.platform === 'facebook') {
           const metaService = require('./services/meta');
-          const path = require('path');
-          const filename = path.basename(post.localFilePath);
-          // TODO: In a real prod environment, use the dynamic base URL from env
-          const videoUrl = 'https://rawcast-production.up.railway.app/uploads/' + filename;
-          
-          const result = await metaService.uploadFacebookVideo(
-            post.channel.accountId, // pageId is saved in accountId
-            post.channel.accessToken,
-            videoUrl,
-            post.caption || '',
-            post.title || ''
-          );
-          
-          console.log(`Successfully uploaded to Facebook. Video ID: ${result.id}`);
-          
+          const photos = photoPathsOf(post);
+
+          let result;
+          if (photos.length > 0) {
+            result = await metaService.uploadFacebookPhotos(
+              post.channel.accountId,
+              post.channel.accessToken,
+              photos.map(publicUploadUrl),
+              post.caption || post.title || ''
+            );
+          } else {
+            result = await metaService.uploadFacebookVideo(
+              post.channel.accountId, // pageId is saved in accountId
+              post.channel.accessToken,
+              publicUploadUrl(post.localFilePath),
+              post.caption || '',
+              post.title || ''
+            );
+          }
+
+          console.log(`Successfully uploaded to Facebook. ID: ${result.id}`);
+
           await prisma.post.update({
             where: { id: post.id },
-            data: { 
+            data: {
               status: 'uploaded',
               platformPostId: result.id
             }
           });
 
-          // Delete the local files
-          if (post.localFilePath) await fs.unlink(post.localFilePath);
-          if (post.thumbnailPath) await fs.unlink(post.thumbnailPath);
-          await prisma.post.update({
-            where: { id: post.id },
-            data: { localFilePath: null, thumbnailPath: null }
-          });
+          await cleanupPostFiles(post);
         }
         else if (post.channel.platform === 'instagram') {
-          const path = require('path');
-          const filename = path.basename(post.localFilePath);
-          const videoUrl = 'https://rawcast-production.up.railway.app/uploads/' + filename;
+          const photos = photoPathsOf(post);
+          const directLogin = post.channel.authKind === 'instagram_login';
+          const caption = post.caption || '';
 
           let result;
-          if (post.channel.authKind === 'instagram_login') {
-            // Connected directly with Instagram business login
+          if (directLogin) {
             const instagramService = require('./services/instagram');
-            result = await instagramService.uploadVideo(
-              post.channel.accountId,
-              post.channel.accessToken,
-              videoUrl,
-              post.caption || ''
-            );
+            result = photos.length > 0
+              ? await instagramService.uploadPhotos(
+                  post.channel.accountId,
+                  post.channel.accessToken,
+                  photos.map(publicUploadUrl),
+                  caption
+                )
+              : await instagramService.uploadVideo(
+                  post.channel.accountId,
+                  post.channel.accessToken,
+                  publicUploadUrl(post.localFilePath),
+                  caption
+                );
           } else {
             // Legacy: IG account linked to a Facebook Page
             const metaService = require('./services/meta');
-            result = await metaService.uploadInstagramVideo(
-              post.channel.accountId, // igAccountId
-              post.channel.accessToken, // page access token
-              videoUrl,
-              post.caption || ''
-            );
+            result = photos.length > 0
+              ? await metaService.uploadInstagramPhotos(
+                  post.channel.accountId,
+                  post.channel.accessToken,
+                  photos.map(publicUploadUrl),
+                  caption
+                )
+              : await metaService.uploadInstagramVideo(
+                  post.channel.accountId, // igAccountId
+                  post.channel.accessToken, // page access token
+                  publicUploadUrl(post.localFilePath),
+                  caption
+                );
           }
-          
+
           console.log(`Successfully uploaded to Instagram. Publish ID: ${result.id}`);
-          
+
           await prisma.post.update({
             where: { id: post.id },
-            data: { 
+            data: {
               status: 'uploaded',
               platformPostId: result.id
             }
           });
 
-          // Delete the local files
-          if (post.localFilePath) await fs.unlink(post.localFilePath);
-          if (post.thumbnailPath) await fs.unlink(post.thumbnailPath);
-          await prisma.post.update({
-            where: { id: post.id },
-            data: { localFilePath: null, thumbnailPath: null }
-          });
+          await cleanupPostFiles(post);
         }
         else if (post.channel.platform === 'tiktok') {
           const tiktokService = require('./services/tiktok');

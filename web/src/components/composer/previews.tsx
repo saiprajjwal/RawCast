@@ -23,6 +23,8 @@ export interface PreviewData {
   mediaUrl: string | null;
   mediaIsVideo: boolean;
   thumbUrl: string | null;
+  /** photo posts (IG carousel / FB multi-photo) — first photo drives the frame */
+  photoUrls?: string[];
   channelName: string;
 }
 
@@ -35,7 +37,8 @@ function MediaFrame({
   className?: string;
   vertical?: boolean;
 }) {
-  const src = data.thumbUrl ?? data.mediaUrl;
+  const firstPhoto = data.photoUrls?.[0] ?? null;
+  const src = firstPhoto ?? data.thumbUrl ?? data.mediaUrl;
   return (
     <div
       className={cn(
@@ -44,8 +47,13 @@ function MediaFrame({
         className,
       )}
     >
+      {(data.photoUrls?.length ?? 0) > 1 && (
+        <span className="absolute right-2 top-2 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[10.5px] font-medium text-white backdrop-blur-sm">
+          1/{data.photoUrls!.length}
+        </span>
+      )}
       {src ? (
-        data.mediaIsVideo && !data.thumbUrl ? (
+        data.mediaIsVideo && !data.thumbUrl && !firstPhoto ? (
           <video src={src} muted playsInline className="size-full object-cover" />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element

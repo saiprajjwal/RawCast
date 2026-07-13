@@ -7,8 +7,11 @@ import { format, addDays } from "date-fns";
 import {
   CalendarClock,
   CircleAlert,
-  Clapperboard,
+  Film,
+  Globe,
   ImagePlus,
+  Images,
+  Inbox,
   Loader2,
   Save,
   Smile,
@@ -33,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlatformPreview, type PreviewData } from "@/components/composer/previews";
 import { PLATFORMS, PlatformIcon, type PlatformId } from "@/lib/platforms";
 import { useChannels, useCreatePost } from "@/lib/queries";
@@ -41,6 +43,55 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const PREVIEWABLE: PlatformId[] = ["youtube", "instagram", "facebook", "linkedin", "x", "tiktok"];
+const PUBLISHABLE: PlatformId[] = ["youtube", "instagram", "facebook", "tiktok"];
+
+/** What each platform's form actually needs. */
+const FORM_CONFIG: Record<
+  string,
+  {
+    title: boolean;
+    youtubeExtras: boolean;
+    photos: boolean;
+    note: string;
+    noteIcon: React.ElementType;
+  }
+> = {
+  youtube: {
+    title: true,
+    youtubeExtras: true,
+    photos: false,
+    note: "Uploads to YouTube as private immediately; YouTube flips it public at the scheduled time.",
+    noteIcon: CalendarClock,
+  },
+  instagram: {
+    title: false,
+    youtubeExtras: false,
+    photos: true,
+    note: "Publishes publicly at the scheduled time — Instagram's API doesn't support audience selection. Videos post as Reels.",
+    noteIcon: Globe,
+  },
+  facebook: {
+    title: false,
+    youtubeExtras: false,
+    photos: true,
+    note: "Publishes to the Page publicly at the scheduled time.",
+    noteIcon: Globe,
+  },
+  tiktok: {
+    title: false,
+    youtubeExtras: false,
+    photos: false,
+    note: "Video lands in your TikTok inbox at the scheduled time — you finalize it and choose the audience in the TikTok app.",
+    noteIcon: Inbox,
+  },
+};
+
+const AUTH_URLS: Partial<Record<PlatformId, string>> = {
+  youtube: api.youtubeAuthUrl,
+  instagram: api.instagramAuthUrl,
+  facebook: api.facebookAuthUrl,
+  tiktok: api.tiktokAuthUrl,
+};
 
 const CATEGORIES = [
   ["22", "People & Blogs"],
@@ -74,6 +125,8 @@ const AI_CAPTIONS = [
   "Most creators overcomplicate their setup. In this one I break down the exact three-light configuration I use for every shoot — total cost, under $100.",
 ];
 
+type MediaMode = "video" | "photos";
+
 function ComposerForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -103,31 +156,43 @@ function ComposerForm() {
     },
   });
 
-  const [selected, setSelected] = useState<PlatformId[]>(["youtube"]);
+  // ONE platform per post — no ambiguity about where it goes.
+  const [platform, setPlatform] = useState<PlatformId>("youtube");
   const [previewPlatform, setPreviewPlatform] = useState<PlatformId>("youtube");
+  const [mediaMode, setMediaMode] = useState<MediaMode>("video");
   const [video, setVideo] = useState<File | null>(null);
   const [thumb, setThumb] = useState<File | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const videoInput = useRef<HTMLInputElement>(null);
   const thumbInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
 
   const values = watch();
-  const activeChannels = channels?.[previewPlatform] ?? [];
+  const config = FORM_CONFIG[platform];
+  const activeChannels = channels?.[platform] ?? [];
+  const effectiveMediaMode: MediaMode = config.photos ? mediaMode : "video";
 
-  // Default the channel once channels load or platform changes.
+  const selectPlatform = (p: PlatformId) => {
+    setPlatform(p);
+    setPreviewPlatform(p);
+    if (!FORM_CONFIG[p].photos) setMediaMode("video");
+  };
+
+  // Keep the channel pinned to the chosen platform.
   useEffect(() => {
     if (activeChannels.length > 0) {
-      // Only set if we haven't selected a valid one for this platform
-      if (!values.channelId || !activeChannels.find(c => c.id === values.channelId)) {
+      if (!values.channelId || !activeChannels.find((c) => c.id === values.channelId)) {
         setValue("channelId", activeChannels[0].id);
       }
     } else {
       setValue("channelId", "");
     }
-  }, [activeChannels, values.channelId, setValue, previewPlatform]);
+  }, [activeChannels, values.channelId, setValue, platform]);
 
   useEffect(() => {
     if (!video) return setVideoUrl(null);
@@ -143,8 +208,14 @@ function ComposerForm() {
     return () => URL.revokeObjectURL(url);
   }, [thumb]);
 
+  useEffect(() => {
+    const urls = photos.map((p) => URL.createObjectURL(p));
+    setPhotoUrls(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [photos]);
+
   const captionLen = (values.caption + (values.hashtags ? "\n\n" + values.hashtags : "")).length;
-  const maxChars = PLATFORMS[previewPlatform].maxChars;
+  const maxChars = PLATFORMS[platform].maxChars;
   const overLimit = maxChars !== null && captionLen > maxChars;
 
   const previewData: PreviewData = useMemo(
@@ -155,10 +226,23 @@ function ComposerForm() {
       mediaUrl: videoUrl,
       mediaIsVideo: true,
       thumbUrl,
+      photoUrls: effectiveMediaMode === "photos" ? photoUrls : undefined,
       channelName: activeChannels.find((c) => c.id === values.channelId)?.name ?? "RawCast Studio",
     }),
-    [values.title, values.caption, values.hashtags, videoUrl, thumbUrl, activeChannels, values.channelId],
+    [values.title, values.caption, values.hashtags, videoUrl, thumbUrl, photoUrls, effectiveMediaMode, activeChannels, values.channelId],
   );
+
+  const addPhotos = (files: FileList | File[]) => {
+    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (images.length === 0) return toast.error("Drop image files (JPG/PNG)");
+    setPhotos((prev) => {
+      const next = [...prev, ...images].slice(0, 10);
+      if (prev.length + images.length > 10) {
+        toast.info("Maximum 10 photos", { description: "Instagram carousels cap at 10 — extras were skipped." });
+      }
+      return next;
+    });
+  };
 
   const runAi = (kind: "write" | "improve" | "hashtags") => {
     setAiBusy(kind);
@@ -185,19 +269,32 @@ function ComposerForm() {
   };
 
   const onSchedule = handleSubmit((form) => {
-    if (!video) {
-      toast.error("Add a video file", { description: "YouTube posts need a video to upload." });
-      return;
-    }
     if (!form.channelId) {
-      toast.error("Connect a YouTube channel first", {
-        description: "Open Settings → Channels to connect via Google.",
+      toast.error(`Connect a ${PLATFORMS[platform].name} account first`, {
+        description: "Open Settings → Channels to connect one.",
       });
       return;
     }
+    if (effectiveMediaMode === "photos") {
+      if (photos.length === 0) {
+        toast.error("Add at least one photo");
+        return;
+      }
+    } else if (!video) {
+      toast.error("Add a video file", {
+        description: `${PLATFORMS[platform].name} posts need a video${config.photos ? " — or switch to Photos" : ""}.`,
+      });
+      return;
+    }
+
+    // Non-YouTube platforms have no title field — derive an internal label.
+    const title = config.title
+      ? form.title
+      : form.caption.split("\n")[0].slice(0, 60) || `${PLATFORMS[platform].name} post`;
+
     createPost.mutate(
       {
-        title: form.title,
+        title,
         caption: [form.caption, form.hashtags].filter(Boolean).join("\n\n"),
         date: form.date,
         time: form.time,
@@ -205,13 +302,14 @@ function ComposerForm() {
         tags: form.hashtags.replaceAll("#", "").split(/\s+/).filter(Boolean).join(","),
         madeForKids: form.madeForKids,
         categoryId: form.categoryId,
-        video,
-        thumbnail: thumb,
+        video: effectiveMediaMode === "video" ? video : null,
+        thumbnail: platform === "youtube" ? thumb : null,
+        photos: effectiveMediaMode === "photos" ? photos : [],
       },
       {
         onSuccess: () => {
           toast.success("Scheduled 🎉", {
-            description: `Uploads privately now, goes live ${format(new Date(form.date + "T" + form.time), "EEE, MMM d 'at' h:mm a")}.`,
+            description: `${PLATFORMS[platform].name} · ${format(new Date(form.date + "T" + form.time), "EEE, MMM d 'at' h:mm a")}`,
           });
           router.push("/calendar");
         },
@@ -224,75 +322,72 @@ function ComposerForm() {
   });
 
   const saveDraft = () => {
-    window.localStorage.setItem("rc.draft", JSON.stringify({ ...values, saved: Date.now() }));
+    window.localStorage.setItem("rc.draft", JSON.stringify({ ...values, platform, saved: Date.now() }));
     toast.success("Draft saved", { description: "Stored locally — pick it up anytime." });
   };
+
+  const mediaSummary =
+    effectiveMediaMode === "photos"
+      ? photos.length > 0
+        ? `${photos.length} photo${photos.length === 1 ? "" : "s"}`
+        : "No photos yet"
+      : video
+        ? video.name
+        : "No media yet";
 
   return (
     <Page wide className="pb-24">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* ------------------------------------------------ Left: form */}
         <div className="space-y-5">
-          {/* Platform selector */}
-          <section aria-label="Platforms">
+          {/* Platform selector — exactly one target */}
+          <section aria-label="Platform">
             <Label className="mb-2 block text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
               Publish to
             </Label>
-            <div className="flex flex-wrap gap-2">
-              {PREVIEWABLE.map((p) => {
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Platform">
+              {PUBLISHABLE.map((p) => {
                 const meta = PLATFORMS[p];
-                const active = selected.includes(p);
-                const available = ["youtube", "tiktok", "facebook", "instagram"].includes(p);
+                const active = platform === p;
+                const count = channels?.[p]?.length ?? 0;
                 return (
-                  <Tooltip key={p}>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => {
-                          if (!available) {
-                            toast.info(`${meta.name} isn't connected yet`, {
-                              description: "Preview still works — connect it in Settings when the integration ships.",
-                            });
-                            setPreviewPlatform(p);
-                            return;
-                          }
-                          setSelected((s) => (active ? s.filter((x) => x !== p) : [...s, p]));
-                          setPreviewPlatform(p);
-                        }}
-                        aria-pressed={active}
-                        className={cn(
-                          "flex h-9 items-center gap-2 rounded-lg border px-3 text-[13px] font-medium transition-all duration-200",
-                          active
-                            ? "border-brand bg-brand/15 text-foreground elevation-1 ring-1 ring-brand/50 shadow-sm shadow-brand/20"
-                            : "border-border/60 bg-card text-muted-foreground hover:border-border hover:bg-accent hover:text-foreground",
-                          !available && !active && "opacity-55",
-                        )}
-                      >
-                        <PlatformIcon platform={p} colored={!active} className="size-3.5" />
-                        {meta.name}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      {available ? (active ? "Publishing here" : "Click to include") : "Integration coming soon — preview only"}
-                    </TooltipContent>
-                  </Tooltip>
+                  <button
+                    key={p}
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => selectPlatform(p)}
+                    className={cn(
+                      "flex h-9 items-center gap-2 rounded-lg border px-3 text-[13px] font-medium transition-all duration-200",
+                      active
+                        ? "border-brand bg-brand/15 text-foreground elevation-1 ring-1 ring-brand/50 shadow-sm shadow-brand/20"
+                        : "border-border/60 bg-card text-muted-foreground hover:border-border hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    <PlatformIcon platform={p} colored={!active} className="size-3.5" />
+                    {meta.name}
+                    <span className={cn("rounded-full px-1.5 text-[10.5px] tnum", active ? "bg-brand/20" : "bg-muted")}>
+                      {count}
+                    </span>
+                  </button>
                 );
               })}
             </div>
           </section>
 
-          {/* Channel + title */}
+          {/* Account + platform-specific basics */}
           <div className="grid gap-4 rounded-xl border border-border/60 bg-card glass-card p-4 elevation-1 transition-all duration-300 hover:elevation-2">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className={cn("grid gap-4", config.youtubeExtras && "sm:grid-cols-2")}>
               <div>
-                <Label htmlFor="channel" className="mb-1.5 block text-[12.5px]">
-                  {PLATFORMS[previewPlatform]?.name ?? "Platform"} account
+                <Label htmlFor="channel" className="mb-1.5 flex items-center gap-1.5 text-[12.5px]">
+                  <PlatformIcon platform={platform} colored className="size-3.5" />
+                  {PLATFORMS[platform].name} account
                 </Label>
                 {channelsLoading ? (
                   <Skeleton className="h-9 w-full rounded-lg" />
                 ) : activeChannels.length === 0 ? (
                   <Button variant="outline" size="sm" className="h-9 w-full justify-start gap-2" asChild>
-                    <a href={previewPlatform === "youtube" ? api.youtubeAuthUrl : previewPlatform === "tiktok" ? api.tiktokAuthUrl : previewPlatform === "instagram" ? api.instagramAuthUrl : api.facebookAuthUrl} target="_blank" rel="noreferrer">
-                      <PlatformIcon platform={previewPlatform} className="size-4" /> Connect {PLATFORMS[previewPlatform]?.name}…
+                    <a href={AUTH_URLS[platform]} target="_blank" rel="noreferrer">
+                      <PlatformIcon platform={platform} className="size-4" /> Connect {PLATFORMS[platform].name}…
                     </a>
                   </Button>
                 ) : (
@@ -303,48 +398,58 @@ function ComposerForm() {
                     <SelectContent>
                       {activeChannels.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.name}
+                          <span className="flex items-center gap-2">
+                            <PlatformIcon platform={platform} colored className="size-3.5" />
+                            {c.name}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               </div>
-              <div>
-                <Label htmlFor="category" className="mb-1.5 block text-[12.5px]">
-                  Category
-                </Label>
-                <Select value={values.categoryId} onValueChange={(v) => setValue("categoryId", v)}>
-                  <SelectTrigger id="category" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map(([id, label]) => (
-                      <SelectItem key={id} value={id}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="title" className="mb-1.5 block text-[12.5px]">
-                Title <span aria-hidden className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="title"
-                placeholder="Give this post a title people can't scroll past"
-                aria-invalid={!!errors.title}
-                {...register("title", { required: "A title is required", maxLength: { value: 100, message: "YouTube titles max out at 100 characters" } })}
-              />
-              {errors.title && (
-                <p role="alert" className="mt-1.5 flex items-center gap-1 text-[12px] text-destructive">
-                  <CircleAlert className="size-3.5" /> {errors.title.message}
-                </p>
+              {config.youtubeExtras && (
+                <div>
+                  <Label htmlFor="category" className="mb-1.5 block text-[12.5px]">
+                    Category
+                  </Label>
+                  <Select value={values.categoryId} onValueChange={(v) => setValue("categoryId", v)}>
+                    <SelectTrigger id="category" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map(([id, label]) => (
+                        <SelectItem key={id} value={id}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
             </div>
+
+            {config.title && (
+              <div>
+                <Label htmlFor="title" className="mb-1.5 block text-[12.5px]">
+                  Title <span aria-hidden className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="title"
+                  placeholder="Give this post a title people can't scroll past"
+                  aria-invalid={!!errors.title}
+                  {...register("title", {
+                    validate: (v) => !config.title || v.trim().length > 0 || "A title is required",
+                    maxLength: { value: 100, message: "YouTube titles max out at 100 characters" },
+                  })}
+                />
+                {errors.title && (
+                  <p role="alert" className="mt-1.5 flex items-center gap-1 text-[12px] text-destructive">
+                    <CircleAlert className="size-3.5" /> {errors.title.message}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Caption with AI toolbar */}
             <div>
@@ -363,7 +468,7 @@ function ComposerForm() {
               <Textarea
                 id="caption"
                 rows={5}
-                placeholder="What's the story behind this one?"
+                placeholder={config.title ? "What's the story behind this one?" : "Write the caption people will actually read…"}
                 className="resize-y text-[13.5px] leading-relaxed"
                 {...register("caption")}
               />
@@ -412,12 +517,98 @@ function ComposerForm() {
             </div>
           </div>
 
-          {/* Media */}
+          {/* Media — adapts to platform */}
           <div className="rounded-xl border border-border/60 bg-card glass-card p-4 elevation-1 transition-all duration-300 hover:elevation-2">
-            <Label className="mb-2.5 block text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Media
-            </Label>
-            {video ? (
+            <div className="mb-2.5 flex items-center justify-between">
+              <Label className="block text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Media
+              </Label>
+              {config.photos && (
+                <div className="flex rounded-lg border border-border/70 bg-muted/40 p-0.5" role="radiogroup" aria-label="Media type">
+                  {(
+                    [
+                      ["video", "Video", Film],
+                      ["photos", "Photos", Images],
+                    ] as const
+                  ).map(([mode, label, Icon]) => (
+                    <button
+                      key={mode}
+                      role="radio"
+                      aria-checked={effectiveMediaMode === mode}
+                      onClick={() => setMediaMode(mode)}
+                      className={cn(
+                        "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors",
+                        effectiveMediaMode === mode ? "bg-card text-foreground elevation-1" : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="size-3.5" /> {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {effectiveMediaMode === "photos" ? (
+              <>
+                {photos.length > 0 && (
+                  <div className="mb-3 grid grid-cols-4 gap-2 sm:grid-cols-5">
+                    {photos.map((p, i) => (
+                      <div key={`${p.name}-${i}`} className="group relative aspect-square overflow-hidden rounded-lg border border-border/70">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={photoUrls[i]} alt={p.name} className="size-full object-cover" />
+                        <button
+                          aria-label={`Remove ${p.name}`}
+                          onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
+                          className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                        >
+                          <X className="size-3" />
+                        </button>
+                        {i === 0 && photos.length > 1 && (
+                          <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1 text-[9.5px] text-white">Cover</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {photos.length < 10 && (
+                  <button
+                    type="button"
+                    onClick={() => photoInput.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOver(false);
+                      addPhotos(e.dataTransfer.files);
+                    }}
+                    className={cn(
+                      "flex w-full flex-col items-center gap-1.5 rounded-lg border border-dashed px-4 transition-colors",
+                      photos.length > 0 ? "py-4" : "py-8",
+                      dragOver ? "border-brand bg-brand-muted/50" : "border-border hover:border-ring hover:bg-accent/50",
+                    )}
+                  >
+                    <Images className="size-5 text-muted-foreground" strokeWidth={1.6} />
+                    <span className="text-[13px] font-medium">
+                      {photos.length > 0 ? "Add more photos" : "Drop photos, or click to browse"}
+                    </span>
+                    <span className="text-[11.5px] text-muted-foreground">
+                      JPG or PNG · up to 10 — {photos.length > 1 || photos.length === 0 ? "2+ photos post as a carousel" : "add another for a carousel"}
+                    </span>
+                  </button>
+                )}
+                <input
+                  ref={photoInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) addPhotos(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </>
+            ) : video ? (
               <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/40 p-2.5">
                 {videoUrl && (
                   <video src={videoUrl} muted playsInline className="h-14 w-24 rounded-md object-cover" />
@@ -452,7 +643,13 @@ function ComposerForm() {
               >
                 <Upload className="size-5 text-muted-foreground" strokeWidth={1.6} />
                 <span className="text-[13px] font-medium">Drop a video, or click to browse</span>
-                <span className="text-[11.5px] text-muted-foreground">MP4, MOV — uploads privately, publishes on schedule</span>
+                <span className="text-[11.5px] text-muted-foreground">
+                  {platform === "instagram"
+                    ? "MP4, 9:16 works best — publishes as a Reel"
+                    : platform === "tiktok"
+                      ? "MP4, 9:16 — finalize in the TikTok app"
+                      : "MP4, MOV"}
+                </span>
               </button>
             )}
             <input
@@ -463,39 +660,43 @@ function ComposerForm() {
               onChange={(e) => setVideo(e.target.files?.[0] ?? null)}
             />
 
-            <div className="mt-3 flex items-center gap-3">
-              <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => thumbInput.current?.click()}>
-                <ImagePlus className="size-3.5" />
-                {thumb ? "Replace thumbnail" : "Add thumbnail"}
-              </Button>
-              {thumb && (
-                <span className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                  <span className="truncate max-w-40">{thumb.name}</span>
-                  <button aria-label="Remove thumbnail" onClick={() => setThumb(null)} className="text-muted-foreground hover:text-foreground">
-                    <X className="size-3.5" />
-                  </button>
-                </span>
-              )}
-              <input
-                ref={thumbInput}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => setThumb(e.target.files?.[0] ?? null)}
-              />
-            </div>
+            {config.youtubeExtras && (
+              <div className="mt-3 flex items-center gap-3">
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => thumbInput.current?.click()}>
+                  <ImagePlus className="size-3.5" />
+                  {thumb ? "Replace thumbnail" : "Add thumbnail"}
+                </Button>
+                {thumb && (
+                  <span className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                    <span className="max-w-40 truncate">{thumb.name}</span>
+                    <button aria-label="Remove thumbnail" onClick={() => setThumb(null)} className="text-muted-foreground hover:text-foreground">
+                      <X className="size-3.5" />
+                    </button>
+                  </span>
+                )}
+                <input
+                  ref={thumbInput}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => setThumb(e.target.files?.[0] ?? null)}
+                />
+              </div>
+            )}
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="alt" className="mb-1.5 block text-[12.5px]">Alt text</Label>
                 <Input id="alt" placeholder="Describe the media for screen readers" {...register("altText")} />
               </div>
-              <div>
-                <Label htmlFor="firstComment" className="mb-1.5 block text-[12.5px]">
-                  First comment <span className="text-[11px] text-muted-foreground">(IG/LinkedIn)</span>
-                </Label>
-                <Input id="firstComment" placeholder="Drop links & extra hashtags here" {...register("firstComment")} />
-              </div>
+              {platform !== "youtube" && (
+                <div>
+                  <Label htmlFor="firstComment" className="mb-1.5 block text-[12.5px]">
+                    First comment <span className="text-[11px] text-muted-foreground">(coming soon)</span>
+                  </Label>
+                  <Input id="firstComment" placeholder="Drop links & extra hashtags here" {...register("firstComment")} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -513,14 +714,16 @@ function ComposerForm() {
                 <Label htmlFor="time" className="mb-1.5 block text-[12.5px]">Time</Label>
                 <Input id="time" type="time" aria-invalid={!!errors.time} {...register("time", { required: true })} />
               </div>
-              <div className="flex items-end justify-between gap-3 pb-1">
-                <Label htmlFor="kids" className="text-[12.5px] leading-snug">Made for kids</Label>
-                <Switch id="kids" checked={values.madeForKids} onCheckedChange={(v) => setValue("madeForKids", v)} />
-              </div>
+              {config.youtubeExtras && (
+                <div className="flex items-end justify-between gap-3 pb-1">
+                  <Label htmlFor="kids" className="text-[12.5px] leading-snug">Made for kids</Label>
+                  <Switch id="kids" checked={values.madeForKids} onCheckedChange={(v) => setValue("madeForKids", v)} />
+                </div>
+              )}
             </div>
-            <p className="mt-3 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-              <CalendarClock className="size-3.5" />
-              Uploads to YouTube as private immediately; YouTube flips it public at the scheduled time.
+            <p className="mt-3 flex items-start gap-1.5 text-[12px] leading-relaxed text-muted-foreground">
+              <config.noteIcon className="mt-0.5 size-3.5 shrink-0" />
+              {config.note}
             </p>
           </div>
         </div>
@@ -550,15 +753,13 @@ function ComposerForm() {
       {/* Sticky action bar */}
       <div className="fixed inset-x-0 bottom-0 z-20 md:left-16 lg:left-[232px] xl:right-72">
         <div className="glass mx-auto flex max-w-[1400px] items-center gap-2 border-t border-border/70 px-4 py-3 md:px-8">
-          <p className="hidden text-[12px] text-muted-foreground sm:block">
-            {video ? video.name : "No media yet"} · {format(new Date(values.date + "T" + (values.time || "18:00")), "EEE, MMM d · h:mm a")}
+          <p className="hidden items-center gap-1.5 text-[12px] text-muted-foreground sm:flex">
+            <PlatformIcon platform={platform} colored className="size-3.5" />
+            {mediaSummary} · {format(new Date(values.date + "T" + (values.time || "18:00")), "EEE, MMM d · h:mm a")}
           </p>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="ghost" size="sm" className="gap-1.5" onClick={saveDraft}>
               <Save className="size-3.5" /> Save draft
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => toast.info("Queue slots coming soon", { description: "For now, pick an exact date and time." })}>
-              Add to queue
             </Button>
             <Button size="sm" className="gap-1.5 px-4" onClick={onSchedule} disabled={createPost.isPending || overLimit}>
               {createPost.isPending ? (
@@ -567,7 +768,7 @@ function ComposerForm() {
                 </>
               ) : (
                 <>
-                  <CalendarClock className="size-3.5" /> Schedule
+                  <CalendarClock className="size-3.5" /> Schedule to {PLATFORMS[platform].name}
                 </>
               )}
             </Button>

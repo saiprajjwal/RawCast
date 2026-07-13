@@ -26,8 +26,9 @@ model Post {
   caption         String?
   scheduledDate   String   // 'YYYY-MM-DD'
   scheduledTime   String   // 'HH:MM'
-  localFilePath   String?  // Path to the file in /uploads
+  localFilePath   String?  // Path to the video file in /uploads
   thumbnailPath   String?  // Path to the thumbnail in /uploads
+  photoPaths      String?  // JSON array of photo paths in /uploads (IG/FB photo posts)
   tags            String?  // Comma-separated tags
   madeForKids     Boolean  @default(false)
   categoryId      String   @default("22") // Default to People & Blogs

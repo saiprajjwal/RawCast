@@ -27,15 +27,21 @@ router.get('/', async (req, res) => {
       ]
     });
     // Format them for the frontend
-    const formatted = posts.map(p => ({
-      id: p.id,
-      title: p.title,
-      caption: p.caption,
-      date: p.scheduledDate,
-      time: p.scheduledTime,
-      status: p.status,
-      selections: [`${p.channel.platform}:${p.channel.id}`]
-    }));
+    const formatted = posts.map(p => {
+      let photoCount = 0;
+      try { photoCount = p.photoPaths ? JSON.parse(p.photoPaths).length : 0; } catch { /* legacy */ }
+      return {
+        id: p.id,
+        title: p.title,
+        caption: p.caption,
+        date: p.scheduledDate,
+        time: p.scheduledTime,
+        status: p.status,
+        mediaType: photoCount > 0 ? 'photos' : 'video',
+        photoCount,
+        selections: [`${p.channel.platform}:${p.channel.id}`]
+      };
+    });
     res.json(formatted);
   } catch (err) {
     console.error('Error fetching posts:', err);
@@ -43,20 +49,38 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Create a new post
-router.post('/', upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]), async (req, res) => {
+// Create a new post — media is a video, OR photos (IG carousel / FB multi-photo)
+router.post('/', upload.fields([
+  { name: 'video', maxCount: 1 },
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'photos', maxCount: 10 }
+]), async (req, res) => {
   try {
     const { title, caption, date, time, channelId, tags, madeForKids, categoryId } = req.body;
-    
-    if (!req.files || !req.files['video']) {
-      return res.status(400).json({ error: 'Video file is required' });
-    }
+
     if (!channelId) {
       return res.status(400).json({ error: 'channelId is required' });
     }
 
-    const videoPath = req.files['video'][0].path;
-    const thumbnailPath = req.files['thumbnail'] ? req.files['thumbnail'][0].path : null;
+    const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+    if (!channel) {
+      return res.status(400).json({ error: 'Unknown channel' });
+    }
+
+    const videoPath = req.files?.['video'] ? req.files['video'][0].path : null;
+    const thumbnailPath = req.files?.['thumbnail'] ? req.files['thumbnail'][0].path : null;
+    const photoPaths = (req.files?.['photos'] ?? []).map(f => f.path);
+
+    if (!videoPath && photoPaths.length === 0) {
+      return res.status(400).json({ error: 'A video or at least one photo is required' });
+    }
+    if (videoPath && photoPaths.length > 0) {
+      return res.status(400).json({ error: 'Choose either a video or photos, not both' });
+    }
+    // Photos only make sense on Instagram / Facebook
+    if (photoPaths.length > 0 && !['instagram', 'facebook'].includes(channel.platform)) {
+      return res.status(400).json({ error: `${channel.platform} posts need a video` });
+    }
 
     const post = await prisma.post.create({
       data: {
@@ -66,6 +90,7 @@ router.post('/', upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbna
         scheduledTime: time,
         localFilePath: videoPath,
         thumbnailPath: thumbnailPath,
+        photoPaths: photoPaths.length > 0 ? JSON.stringify(photoPaths) : null,
         tags: tags || '',
         madeForKids: madeForKids === 'true',
         categoryId: categoryId || '22',
